@@ -50,9 +50,9 @@ Read bloom.h for more detailed documentation on the public interfaces.
 License
 -------
 This code (except MurmurHash2) is under BSD license. MurmurHash2 is
-in public domain. See LICENSE file.
-This project is based on libbloom by Jyri J. Virkki. This version add
-different features: more items (int vs unsigned long, saving and 
-loading of bloom filter structure, CMake etc).
+public domain. See LICENSE file.
+This project is based on libbloom by Jyri J. Virkki. This version adds
+different features: more items (int vs unsigned long), saving and 
+loading of bloom filter structure, CMake etc.
 
 See murmur2/README for info on MurmurHash2 (Public Domain).
