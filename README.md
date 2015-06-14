@@ -1,4 +1,4 @@
-# libsimplebloom
+#shsh libsimplebloom
 Small bloom filter implementation in plain C with utils
 
 Introduction
@@ -13,11 +13,13 @@ http://en.wikipedia.org/wiki/Bloom_filter
 Building
 --------
 Building is done using CMake. That means:
+```bash
 cd libsimplebloom 
 mkdir build
 cmake ..
 make 
 make install
+```
 
 By default it builds an optimized 32bit libsimplebloom. See Makefile comments
 for other build options.
@@ -27,6 +29,7 @@ Binaries and library will be under ./build directory.
 Sample Usage
 ------------
 
+```c
 #include "bloom.h"
 
 struct bloom bloom;
@@ -36,6 +39,7 @@ bloom_add(&bloom, buffer, buflen);
 if (bloom_check(&bloom, buffer, buflen)) {
   printf("It may be there!\n");
 }
+```
 
 
 Documentation
