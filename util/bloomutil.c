@@ -36,6 +36,7 @@ int opt_unhex=0;
 unsigned int opt_progressitems=1000;
 double opt_errorrate=0.01;
 char *opt_bloomfile=NULL;
+char *opt_readfromfile=NULL;
 
 char config_bloomfile[MAXFILEPATH];
 
@@ -128,6 +129,7 @@ void displayhelp (void) {
 	fprintf(displayto,"bloomutil: utility to query/build set of data. Copyright (C) 2015. Kost\n\n");
 	fprintf(displayto,"-h\tDisplay help\n");
 	fprintf(displayto,"-b <f>\tUse <f> for name of data set (bloom structure)\n");
+	fprintf(displayto,"-f <f>\tRead <f> for search patterns - line by line (use - for stdin)\n");
 	fprintf(displayto,"-c\tCreate data set (bloom structure)\n");
 	fprintf(displayto,"-s\tSearch item in data set (bloom structure)\n");
 	fprintf(displayto,"-u\tUnhex data first (convert specified hex string to binary)\n");
@@ -176,6 +178,26 @@ unsigned long getlinecount (FILE *fp) {
 	return lines;
 }
 
+int searchpattern (char *pattern) {
+	char *toprocess;
+	int found=0;
+	int size;
+	char pline[MAX_LINE_SIZE];
+	char unhex[MAX_LINE_SIZE];
+
+	toprocess=pattern;
+	size=strlen(toprocess);
+	if (opt_ignorecase) {
+		toprocess=str2upper(toprocess,pline);
+	}
+	if (opt_unhex) {
+		size=hexstr2char(toprocess,unhex,MAX_LINE_SIZE);
+		toprocess=unhex;
+	}
+	found=bloom_check(&bloom, toprocess, size);
+	return (found);
+}
+
 int main (int argc, char *argv[]) {
 	int count;
 	unsigned long maxitems=0;
@@ -197,7 +219,7 @@ int main (int argc, char *argv[]) {
 	/* load config */
 	loadconfig();
 
-  while ((c = getopt (argc, argv, "huicp:svde:b:")) != -1)
+  while ((c = getopt (argc, argv, "huicp:svde:b:f:")) != -1)
     switch (c)
       {
       case 'h':
@@ -222,6 +244,9 @@ int main (int argc, char *argv[]) {
       case 'b':
         opt_bloomfile = optarg;
         break;
+      case 'f':
+	opt_readfromfile = optarg;
+	break;
       case 's':
         opt_search = 1;
         break;
@@ -329,20 +354,39 @@ int main (int argc, char *argv[]) {
 		for (index = optind; index < argc; index++) {
 			toprocess=argv[index];
 			if (opt_verbose) fprintf(stderr,"[i] Processing %s\n", toprocess);
-			size=strlen(toprocess);
-			if (opt_ignorecase) {
-				toprocess=str2upper(toprocess,pline);
-			}
-			if (opt_unhex) {
-				size=hexstr2char(toprocess,unhex,MAX_LINE_SIZE);
-				toprocess=unhex;
-			} 
-			found=bloom_check(&bloom, toprocess, size);
-			if (found) {
+			if (searchpattern(toprocess)) {
 				fprintf(stdout,"%s found\n", argv[index]);
 			} else {
 				fprintf(stdout,"%s not found\n", argv[index]);
 			}
+		}
+
+		if (opt_readfromfile!=NULL) {
+			if (opt_verbose) fprintf(stderr,"[v] Reading from file %s\n",opt_readfromfile);
+			if (strcmp(opt_readfromfile,"-")==0) {
+				fprintf (stderr,"[i] Reading from standard input. Specify pattern separated by new line.\n");
+				fp=stdin;
+			} else {
+				fp=fopen(opt_readfromfile,"r");
+			}
+			if (fp==NULL) {
+				fprintf(stderr,"[!] Error opening file: %s\n",opt_readfromfile);
+				exit(1);
+			}
+			while (fgets (line, sizeof(line), fp)) {
+				toprocess=line;
+				size=strlen(line);
+				if (line[size-1]=='\n') line[--size]='\0';
+				if (line[size-1]=='\r') line[--size]='\0';
+				if (opt_debug) fprintf(stderr,"[d] Line in pattern (%d): %s \n",size,line);
+				if (opt_verbose) fprintf(stderr,"[v] Processing from file %s\n", toprocess);
+				if (searchpattern(toprocess)) {
+					fprintf(stdout,"%s found\n", toprocess);
+				} else {
+					fprintf(stdout,"%s not found\n", toprocess);
+				}
+			}
+			if (fp!=stdin) fclose (fp);
 		}
 	}
 }
