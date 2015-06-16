@@ -22,10 +22,12 @@
 struct bloom bloom;
 
 int opt_init=0;
+int opt_ignorecase=0;
 int opt_search=0;
 int opt_verbose=0;
 int opt_debug=0;
 int opt_unhex=0;
+unsigned int opt_progressitems=1000;
 double opt_errorrate=0.01;
 char *opt_bloomfile=NULL;
 
@@ -67,6 +69,8 @@ int readconfig (char *filename)
 					opt_debug=atoi(value);
 				} else if (strcmp(key,"verbose")==0) {
 					opt_verbose=atoi(value);
+				} else if (strcmp(key,"ignorecase")==0) {
+					opt_ignorecase=atoi(value);
 				} else if (strcmp(key,"unhex")==0) {
 					opt_unhex=atoi(value);
 				} else if (strcmp(key,"errorrate")==0) {
@@ -97,6 +101,34 @@ void loadconfig (void) {
 	strncat (filename, ".", CONFIGMAXFILENAME);
 	strncat (filename, CONFIGFILENAME, CONFIGMAXFILENAME);
 	readconfig(filename);
+}
+
+char *str2upper(char *src, char *dest) {
+	char *p=dest;
+	while (*src) {
+		*dest++=toupper(*src++);
+	}
+	*dest='\0';
+	return p;
+}
+
+
+void displayhelp (void) {
+	FILE *displayto=stdout;
+
+	char src[128]="test\ni\nI";
+	char dest[128];
+
+	fprintf(displayto,"bloomutil: utility to query/build set of data. Copyright (C) 2015. Kost\n\n");
+	fprintf(displayto,"-h\tDisplay help\n");
+	fprintf(displayto,"-b <f>\tUse <f> for name of data set (bloom structure)\n");
+	fprintf(displayto,"-c\tCreate data set (bloom structure)\n");
+	fprintf(displayto,"-s\tSearch item in data set (bloom structure)\n");
+	fprintf(displayto,"-u\tUnhex data first (convert specified hex string to binary)\n");
+	fprintf(displayto,"-e\tUse error rate for creating (default: %f)\n",opt_errorrate);
+	fprintf(displayto,"-p <i>\tDisplay progress after <i> number of items processed\n");
+	fprintf(displayto,"\n");
+	fprintf(displayto,"Example: bloomutil mystring\n");
 }
 
 
@@ -146,26 +178,38 @@ int main (int argc, char *argv[]) {
 	FILE *fp;
 	unsigned long items;
 	char line[MAX_LINE_SIZE];
+	char pline[MAX_LINE_SIZE];
 	char unhex[MAX_LINE_SIZE];
+	char *toprocess;
 	int size;
 	int found=0;	
 
-	/* sef defaults */
+	/* safe defaults */
 	opt_errorrate=0.01;
 	opt_bloomfile=NULL;
 
 	/* load config */
 	loadconfig();
 
-  while ((c = getopt (argc, argv, "uisvde:b:")) != -1)
+  while ((c = getopt (argc, argv, "huicp:svde:b:")) != -1)
     switch (c)
       {
+      case 'h':
+	displayhelp();
+	exit(0);
+	break;
       case 'u':
 	opt_unhex = 1;
 	break;
       case 'i':
+	opt_ignorecase = 1;
+	break;
+      case 'c':
         opt_init = 1;
         break;
+      case 'p':
+	opt_progressitems = atoi(optarg);
+	break;
       case 'e':
 	opt_errorrate = atof(optarg);
 	break;
@@ -234,18 +278,21 @@ int main (int argc, char *argv[]) {
 			}
 			/* read line by line */
 			while (fgets (line, sizeof(line), fp)) {
+				toprocess=line;
 				size=strlen(line);
 				if (line[size-1]=='\n') line[--size]='\0';
 				if (line[size-1]=='\r') line[--size]='\0';
 				if (opt_debug) fprintf(stderr,"Line (%d): %s \n",size,line);
-				if (opt_verbose && (items++ % 100==0)) fprintf(stderr,"\r[i] Line %lu of %lu", items, maxitems);
+				if (opt_verbose && (items++ % opt_progressitems==0)) fprintf(stderr,"\r[i] Line %lu of %lu", items, maxitems);
 
-				if (opt_unhex) {
-					size=hexstr2char(line,unhex,MAX_LINE_SIZE);
-					bloom_add(&bloom, unhex, size);
-				} else {
-					bloom_add(&bloom, line, size);
+				if (opt_ignorecase) {
+					toprocess=str2upper(toprocess,pline);
 				}
+				if (opt_unhex) {
+					size=hexstr2char(toprocess,unhex,MAX_LINE_SIZE);
+					toprocess=unhex;
+				} 
+				bloom_add(&bloom, toprocess, size);
 			}
 			if (opt_verbose) fprintf(stderr,"\n[i] Done for %s!\n",argv[index]);
 			fclose(fp);
@@ -274,14 +321,17 @@ int main (int argc, char *argv[]) {
 		if (opt_verbose) fprintf(stderr,"[i] Searching patterns\n");
 
 		for (index = optind; index < argc; index++) {
-			if (opt_verbose) fprintf(stderr,"[i] Processing %s\n", argv[index]);
-			size=strlen(argv[index]);
-			if (opt_unhex) {
-				size=hexstr2char(argv[index],unhex,MAX_LINE_SIZE);
-				found=bloom_check(&bloom, unhex, size);
-			} else {
-				found=bloom_check(&bloom, argv[index], size);
+			toprocess=argv[index];
+			if (opt_verbose) fprintf(stderr,"[i] Processing %s\n", toprocess);
+			size=strlen(toprocess);
+			if (opt_ignorecase) {
+				toprocess=str2upper(toprocess,pline);
 			}
+			if (opt_unhex) {
+				size=hexstr2char(toprocess,unhex,MAX_LINE_SIZE);
+				toprocess=unhex;
+			} 
+			found=bloom_check(&bloom, toprocess, size);
 			if (found) {
 				fprintf(stdout,"%s found\n", argv[index]);
 			} else {
