@@ -7,8 +7,14 @@
 #define CONFIGMAXBUF 16384
 #define CONFIGDELIM "="
 #define CONFIGMAXFILENAME MAXFILEPATH
+
+#ifdef _WIN32
+#define CONFIGDIRDELIM "\\"
+#define CONFIGDIRLOC "C:\\BLOOMUTIL"
+#else
 #define CONFIGDIRDELIM "/"
 #define CONFIGDIRLOC "/etc"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
